@@ -53,6 +53,7 @@ architecture sim of Fifo_tb is
         testName : String)
         return BOOLEAN is
         variable myLine : line; 
+        -- We have to choose an arbitariliy high value for the size of the String (really annoying)
         variable errorMessage : String(1 to 4096);
     begin
         write (myLine, String'("Expecting: "));
@@ -70,7 +71,7 @@ architecture sim of Fifo_tb is
     end slvAssert;
 
 begin
-    -- Instatiate the FIFO
+    -- Instatiate the FIFO with a depth of 4
     FifoInst : Fifo
     generic map (DEPTH => 4)
     port map    (
@@ -108,12 +109,16 @@ begin
         R_EN <= '0';
         wait until rising_edge(CLK);
         
+        -- Reset the FIFO
         RST <= '1';
         wait until rising_edge(CLK);
 
         RST <= '0';
         wait until rising_edge(CLK);
 
+        -- Test out a basic use case, fill up the FIFO then read all the 
+        -- Values out, we expect to write only 4 values in and read those 
+        -- same values out
         assert HAS_DATA = '0' report "Has Data Check 1 failed" severity error;
         assert IS_FULL = '0' report "Is FULL Check 1 failed" severity error;
 
@@ -227,6 +232,88 @@ begin
 
         assert HAS_DATA = '0' report "Has Data Check 10 failed" severity error;
         assert IS_FULL = '0' report "Is FULL Check 10 failed" severity error;
+
+        -- A really wild edge case will be tested below
+        -- The FIFO will be completly filled up and written to when it is 
+        -- also read from. We expect the FIFO will store a value and write out
+        -- a value when it is also full
+        wait until rising_edge(CLK);
+
+        W_DATA <= x"00000007";
+        W_EN   <= '1';
+        wait until rising_edge(CLK);
+
+        W_DATA <= x"00000008";
+        W_EN   <= '1';
+        wait until rising_edge(CLK);
+
+        assert HAS_DATA = '1' report "Has Data Check 11 failed" severity error;
+        assert IS_FULL = '0' report "Is FULL Check 11 failed" severity error;
+
+        W_DATA <= x"00000009";
+        W_EN   <= '1';
+        wait until rising_edge(CLK);
+
+        W_DATA <= x"0000000A";
+        W_EN   <= '1';
+        wait until rising_edge(CLK);
+
+        -- Now that the FIFO is full we stop writing values in 
+        W_DATA <= x"00000000";
+        W_EN   <= '0';
+        wait until rising_edge(CLK);
+
+        assert HAS_DATA = '1' report "Has Data Check 12 failed" severity error;
+        assert IS_FULL = '1' report "Is FULL Check 12 failed" severity error;
+
+        -- Now put in a value and expect to read out a 
+        W_EN   <= '1';
+        R_EN   <= '1';
+        W_DATA <= x"0000000B";
+        wait until rising_edge(CLK);
+
+        W_EN   <= '0';
+        R_EN   <= '0';
+        W_DATA <= x"00000000";
+        wait until rising_edge(CLK);
+
+        -- Now that we have read one value off we expect to read 4 more off
+        assert HAS_DATA = '1' report "Has Data Check 13 failed" severity error;
+        assert IS_FULL = '1' report "Is FULL Check 13 failed" severity error;
+        expectedValue := x"00000007";
+        result := slvAssert(expectedValue, R_DATA, String'(" R_DATA check 7 failed"));
+
+        wait until rising_edge(CLK);
+        R_EN   <= '1';
+
+        wait until rising_edge(CLK);
+        wait until falling_edge(CLK);
+        assert HAS_DATA = '1' report "Has Data Check 14 failed" severity error;
+        assert IS_FULL = '0' report "Is FULL Check 14 failed" severity error;
+        expectedValue := x"00000008";
+        result := slvAssert(expectedValue, R_DATA, String'(" R_DATA check 8 failed"));
+
+        wait until rising_edge(CLK);
+        wait until falling_edge(CLK);
+        assert HAS_DATA = '1' report "Has Data Check 15 failed" severity error;
+        assert IS_FULL = '0' report "Is FULL Check 15 failed" severity error;
+        expectedValue := x"00000009";
+        result := slvAssert(expectedValue, R_DATA, String'(" R_DATA check 9 failed"));
+
+        wait until rising_edge(CLK);
+        wait until falling_edge(CLK);
+        assert HAS_DATA = '1' report "Has Data Check 16 failed" severity error;
+        assert IS_FULL = '0' report "Is FULL Check 16 failed" severity error;
+        expectedValue := x"0000000A";
+        result := slvAssert(expectedValue, R_DATA, String'(" R_DATA check 10 failed"));
+
+        wait until rising_edge(CLK);
+        R_EN   <= '0';
+        wait until falling_edge(CLK);
+        assert HAS_DATA = '0' report "Has Data Check 14 failed" severity error;
+        assert IS_FULL = '0' report "Is FULL Check 14 failed" severity error;
+        expectedValue := x"0000000B";
+        result := slvAssert(expectedValue, R_DATA, String'(" R_DATA check 11 failed"));
 
         -- End the test
         assert false report "end of test" severity note;
