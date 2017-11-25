@@ -16,6 +16,7 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
+use IEEE.math_real.ALL;
 
 entity Fifo is
 generic ( 
@@ -34,10 +35,11 @@ port    (
 end Fifo;
 
 architecture sim of Fifo is
+    constant ADDR_SIZE      : positive := positive(ceil(log2(real(DEPTH))));
     type     registerFileType is array(0 to DEPTH-1) of std_logic_vector(R_DATA'range); 
     signal   registers      : registerFileType := (others=>(others=>'0'));
-    signal   READ_ADDR      : unsigned(31 downto 0);
-    signal   WRITE_ADDR     : unsigned(31 downto 0);
+    signal   READ_ADDR      : unsigned(ADDR_SIZE downto 0);
+    signal   WRITE_ADDR     : unsigned(ADDR_SIZE downto 0);
     signal   OUTPUT         : std_logic_vector(R_DATA'range);
     signal   IS_FULL_MEM    : std_logic;
 begin
@@ -46,7 +48,7 @@ begin
         if rising_edge(CLK) then 
             if RST = '1' then
                 for I in 0 to DEPTH-1 loop
-                    registers(I) <= std_logic_vector(to_unsigned(0, READ_ADDR'length));
+                    registers(I) <= std_logic_vector(to_unsigned(0, R_DATA'length));
                 end loop;
                 READ_ADDR   <= to_unsigned(0, READ_ADDR'length);
                 WRITE_ADDR  <= to_unsigned(0, WRITE_ADDR'length);
